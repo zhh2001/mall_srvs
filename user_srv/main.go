@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"mall_srvs/user_srv/utils"
 	"net"
 
 	"github.com/hashicorp/consul/api"
@@ -19,7 +20,7 @@ import (
 
 func main() {
 	IP := flag.String("ip", "0.0.0.0", "IPv4地址")
-	Port := flag.Int("port", 50051, "端口号")
+	Port := flag.Int("port", 0, "端口号")
 
 	// 初始化
 	initialize.InitLogger()
@@ -29,6 +30,9 @@ func main() {
 
 	flag.Parse()
 	zap.S().Info("IP:", *IP)
+	if *Port == 0 {
+		*Port, _ = utils.GetFreePort()
+	}
 	zap.S().Info("Port:", *Port)
 
 	server := grpc.NewServer()
@@ -54,7 +58,7 @@ func main() {
 
 	// 生成对应的检查对象
 	check := &api.AgentServiceCheck{
-		GRPC:                           fmt.Sprintf("10.120.221.149:50051"),
+		GRPC:                           fmt.Sprintf("10.120.221.149:%d", *Port),
 		Timeout:                        "5s",
 		Interval:                       "5s",
 		DeregisterCriticalServiceAfter: "10s",
