@@ -5,8 +5,12 @@ import (
 	"fmt"
 	"mall_srvs/user_srv/utils"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -67,7 +71,8 @@ func main() {
 	// 生成注册对象
 	registration := new(api.AgentServiceRegistration)
 	registration.Name = global.ServerConfig.Name
-	registration.ID = global.ServerConfig.Name
+	serviceID := fmt.Sprintf("%s", uuid.NewV4())
+	registration.ID = serviceID
 	registration.Port = *Port
 	registration.Tags = []string{"sues", "zhh", "user", "srv"}
 	registration.Address = "10.120.221.149"
@@ -78,8 +83,19 @@ func main() {
 		panic(err)
 	}
 
-	err = server.Serve(lis)
-	if err != nil {
-		panic("failed to serve: " + err.Error())
+	go func() {
+		err = server.Serve(lis)
+		if err != nil {
+			panic("failed to serve: " + err.Error())
+		}
+	}()
+
+	// 接收终止信号
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	if err = client.Agent().ServiceDeregister(serviceID); err != nil {
+		zap.S().Info("注销失败")
 	}
+	zap.S().Info("注销成功")
 }
