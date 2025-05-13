@@ -1,3 +1,12 @@
+# nacos
+host: '10.120.21.77'
+port: 8848
+namespace: '73bb8093-63eb-4bf3-bd81-84b18fe259d6'
+user: 'nacos'
+password: 'nacos'
+data_id: 'user-srv.json'
+group: 'pro'
+
 mysql:
   host: '10.120.21.77'
   port: 3306
