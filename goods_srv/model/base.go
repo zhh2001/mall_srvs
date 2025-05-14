@@ -19,9 +19,9 @@ func (g *GormList) Value() (driver.Value, error) {
 }
 
 type BaseModel struct {
-	ID        int32     `gorm:"primary_key;type:int"`
-	IsDeleted bool      `gorm:"column:is_deleted"`
-	CreatedAt time.Time `gorm:"column:create_time"`
-	UpdatedAt time.Time `gorm:"column:update_time"`
-	DeletedAt gorm.DeletedAt
+	ID        int32          `json:"id" gorm:"primary_key;type:int"`
+	IsDeleted bool           `json:"-" gorm:"column:is_deleted"`
+	CreatedAt time.Time      `json:"-" gorm:"column:create_time"`
+	UpdatedAt time.Time      `json:"-" gorm:"column:update_time"`
+	DeletedAt gorm.DeletedAt `json:"-"`
 }
