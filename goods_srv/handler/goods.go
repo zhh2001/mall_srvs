@@ -47,7 +47,7 @@ func ModelToResponse(goods model.Goods) proto.GoodsInfoResponse {
 	}
 }
 
-func (g *GoodsServer) GoodsList(ctx context.Context, req *proto.GoodsFilterRequest) (*proto.GoodsListResponse, error) {
+func (s *GoodsServer) GoodsList(ctx context.Context, req *proto.GoodsFilterRequest) (*proto.GoodsListResponse, error) {
 	goodsListResponse := &proto.GoodsListResponse{}
 
 	var goods []model.Goods
@@ -119,8 +119,29 @@ func (g *GoodsServer) GoodsList(ctx context.Context, req *proto.GoodsFilterReque
 	return goodsListResponse, nil
 }
 
-//BatchGetGoods(context.Context, *BatchGoodsIdInfo) (*GoodsListResponse, error)
-//CreateGoods(context.Context, *CreateGoodsInfo) (*GoodsInfoResponse, error)
+func (s *GoodsServer) BatchGetGoods(ctx context.Context, req *proto.BatchGoodsIdInfo) (*proto.GoodsListResponse, error) {
+	goodsListResponse := &proto.GoodsListResponse{}
+	var goods []model.Goods
+
+	result := global.DB.Where(req.Id).Find(&goods)
+	for _, good := range goods {
+		goodsInfoResponse := ModelToResponse(good)
+		goodsListResponse.Data = append(goodsListResponse.Data, &goodsInfoResponse)
+	}
+	goodsListResponse.Total = int32(result.RowsAffected)
+	return goodsListResponse, nil
+}
+
+func (s *GoodsServer) GetGoodsDetail(ctx context.Context, req *proto.GoodInfoRequest) (*proto.GoodsInfoResponse, error) {
+	var goods model.Goods
+
+	if result := global.DB.First(&goods, req.Id); result.RowsAffected == 0 {
+		return nil, status.Errorf(codes.NotFound, "商品不存在")
+	}
+	goodsInfoResponse := ModelToResponse(goods)
+	return &goodsInfoResponse, nil
+}
+
 //DeleteGoods(context.Context, *DeleteGoodsInfo) (*emptypb.Empty, error)
 //UpdateGoods(context.Context, *CreateGoodsInfo) (*emptypb.Empty, error)
-//GetGoodsDetail(context.Context, *GoodInfoRequest) (*GoodsInfoResponse, error)
+//CreateGoods(context.Context, *GoodInfoRequest) (*GoodsInfoResponse, error)

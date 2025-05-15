@@ -29,6 +29,29 @@ func TestGetGoodsList() {
 	}
 }
 
+func TestBatchGetGoods() {
+	rsp, err := brandClient.BatchGetGoods(context.Background(), &proto.BatchGoodsIdInfo{
+		Id: []int32{421, 422, 423},
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(rsp.Total)
+	for _, good := range rsp.Data {
+		fmt.Println(good.Name, good.ShopPrice)
+	}
+}
+
+func TestGetGoodsDetail() {
+	rsp, err := brandClient.GetGoodsDetail(context.Background(), &proto.GoodInfoRequest{
+		Id: 421,
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(rsp.Name)
+}
+
 func Init() {
 	var err error
 	conn, err = grpc.NewClient("127.0.0.1:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -48,4 +71,6 @@ func main() {
 	}()
 
 	TestGetGoodsList()
+	TestBatchGetGoods()
+	TestGetGoodsDetail()
 }
