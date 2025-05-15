@@ -6,6 +6,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"mall_srvs/goods_srv/global"
 	"mall_srvs/goods_srv/model"
@@ -142,6 +143,83 @@ func (s *GoodsServer) GetGoodsDetail(ctx context.Context, req *proto.GoodInfoReq
 	return &goodsInfoResponse, nil
 }
 
-//DeleteGoods(context.Context, *DeleteGoodsInfo) (*emptypb.Empty, error)
-//UpdateGoods(context.Context, *CreateGoodsInfo) (*emptypb.Empty, error)
-//CreateGoods(context.Context, *GoodInfoRequest) (*GoodsInfoResponse, error)
+func (s *GoodsServer) CreateGoods(ctx context.Context, req *proto.CreateGoodsInfo) (*proto.GoodsInfoResponse, error) {
+	var category model.Category
+	if result := global.DB.First(&category, req.CategoryId); result.RowsAffected == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "商品分类不存在")
+	}
+
+	var brand model.Brands
+	if result := global.DB.First(&brand, req.BrandId); result.RowsAffected == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "品牌不存在")
+	}
+
+	goods := model.Goods{
+		Brands:          brand,
+		BrandsID:        brand.ID,
+		Category:        category,
+		CategoryID:      category.ID,
+		Name:            req.Name,
+		GoodsSn:         req.GoodsSn,
+		MarketPrice:     req.MarketPrice,
+		ShopPrice:       req.ShopPrice,
+		GoodsBrief:      req.GoodsBrief,
+		ShipFree:        req.ShipFree,
+		Images:          req.Images,
+		DescImages:      req.DescImages,
+		GoodsFrontImage: req.GoodsFrontImage,
+		IsNew:           req.IsNew,
+		IsHot:           req.IsHot,
+		OnSale:          req.OnSale,
+	}
+
+	global.DB.Save(&goods)
+	return &proto.GoodsInfoResponse{
+		Id: goods.ID,
+	}, nil
+}
+
+func (s *GoodsServer) DeleteGoods(ctx context.Context, req *proto.DeleteGoodsInfo) (*emptypb.Empty, error) {
+	if result := global.DB.Delete(&model.Goods{}, req.Id); result.RowsAffected == 0 {
+		return nil, status.Errorf(codes.NotFound, "商品不存在")
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *GoodsServer) UpdateGoods(ctx context.Context, req *proto.CreateGoodsInfo) (*emptypb.Empty, error) {
+	var goods model.Goods
+
+	if result := global.DB.First(&goods, req.Id); result.RowsAffected == 0 {
+		return nil, status.Errorf(codes.NotFound, "商品不存在")
+	}
+
+	var category model.Category
+	if result := global.DB.First(&category, req.CategoryId); result.RowsAffected == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "商品分类不存在")
+	}
+
+	var brand model.Brands
+	if result := global.DB.First(&brand, req.BrandId); result.RowsAffected == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "品牌不存在")
+	}
+
+	goods.Brands = brand
+	goods.BrandsID = brand.ID
+	goods.Category = category
+	goods.CategoryID = category.ID
+	goods.Name = req.Name
+	goods.GoodsSn = req.GoodsSn
+	goods.MarketPrice = req.MarketPrice
+	goods.ShopPrice = req.ShopPrice
+	goods.GoodsBrief = req.GoodsBrief
+	goods.ShipFree = req.ShipFree
+	goods.Images = req.Images
+	goods.DescImages = req.DescImages
+	goods.GoodsFrontImage = req.GoodsFrontImage
+	goods.IsNew = req.IsNew
+	goods.IsHot = req.IsHot
+	goods.OnSale = req.OnSale
+
+	global.DB.Save(&goods)
+	return &emptypb.Empty{}, nil
+}
