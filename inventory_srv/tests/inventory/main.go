@@ -84,6 +84,12 @@ func main() {
 	TestSell()
 	TestReback()
 
+	// 为所有商品设置 100 库存
+	var i int32
+	for i = 421; i <= 840; i++ {
+		TestSetInv(i, 100)
+	}
+
 	err := conn.Close()
 	if err != nil {
 		panic(err)
