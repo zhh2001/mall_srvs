@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"gorm.io/gorm/clause"
 	"sync"
 
 	"google.golang.org/grpc/codes"
@@ -45,11 +46,15 @@ var m sync.Mutex
 
 func (s *InventoryServer) Sell(ctx context.Context, req *proto.SellInfo) (*emptypb.Empty, error) {
 	// 扣减库存，本地事务，数据一致性
-	m.Lock() // 获取锁
+	//m.Lock() // 获取锁
 	tx := global.DB.Begin()
 	for _, goodsInfo := range req.GoodsInfo {
 		var inv model.Inventory
-		if result := global.DB.Where(&model.Inventory{Goods: goodsInfo.GetGoodsId()}).First(&inv); result.RowsAffected == 0 {
+		if result := tx.Clauses(clause.Locking{
+			Strength: clause.LockingStrengthUpdate,
+		}).Where(&model.Inventory{
+			Goods: goodsInfo.GetGoodsId(),
+		}).First(&inv); result.RowsAffected == 0 {
 			tx.Rollback()
 			return nil, status.Errorf(codes.InvalidArgument, "没有库存信息")
 		}
@@ -63,7 +68,7 @@ func (s *InventoryServer) Sell(ctx context.Context, req *proto.SellInfo) (*empty
 		tx.Save(&inv)
 	}
 	tx.Commit()
-	m.Unlock() // 释放锁
+	//m.Unlock() // 释放锁
 	return &emptypb.Empty{}, nil
 }
 
