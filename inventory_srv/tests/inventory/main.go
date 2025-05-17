@@ -106,10 +106,10 @@ func Reset() {
 }
 
 func ConSell() {
-	TestSetInv(421, 50)
+	TestSetInv(421, 100)
 
 	var wg sync.WaitGroup
-	for i := 0; i < 80; i++ {
+	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go TestConSell(&wg)
 	}
