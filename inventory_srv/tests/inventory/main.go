@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -53,6 +54,19 @@ func TestSell() {
 	fmt.Println("库存扣减成功")
 }
 
+func TestConSell(wg *sync.WaitGroup) {
+	defer wg.Done()
+	_, err := invClient.Sell(context.Background(), &proto.SellInfo{
+		GoodsInfo: []*proto.GoodsInvInfo{
+			{GoodsId: 421, Num: 1},
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("库存扣减成功")
+}
+
 func TestReback() {
 	_, err := invClient.Reback(context.Background(), &proto.SellInfo{
 		GoodsInfo: []*proto.GoodsInvInfo{
@@ -75,20 +89,42 @@ func Init() {
 	invClient = proto.NewInventoryClient(conn)
 }
 
-func main() {
-	Init()
-
+func Test() {
 	TestSetInv(421, 100)
 	TestSetInv(422, 40)
 	TestInvDetail(421)
 	TestSell()
 	TestReback()
+}
 
+func Reset() {
 	// 为所有商品设置 100 库存
 	var i int32
 	for i = 421; i <= 840; i++ {
 		TestSetInv(i, 100)
 	}
+}
+
+func ConSell() {
+	TestSetInv(421, 100)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 30; i++ {
+		wg.Add(1)
+		go TestConSell(&wg)
+	}
+
+	wg.Wait()
+}
+
+func main() {
+	Init()
+
+	//Test()
+
+	//Reset()
+
+	ConSell()
 
 	err := conn.Close()
 	if err != nil {
