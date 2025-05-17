@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"mall_srvs/inventory_srv/global"
+	"mall_srvs/inventory_srv/handler"
 	"mall_srvs/inventory_srv/initialize"
 	"mall_srvs/inventory_srv/proto"
 	"mall_srvs/inventory_srv/utils"
@@ -39,7 +40,7 @@ func main() {
 	zap.S().Info("Port:", *Port)
 
 	server := grpc.NewServer()
-	proto.RegisterInventoryServer(server, &proto.UnimplementedInventoryServer{})
+	proto.RegisterInventoryServer(server, &handler.InventoryServer{})
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *IP, *Port))
 	if err != nil {
 		panic("failed to listen: " + err.Error())

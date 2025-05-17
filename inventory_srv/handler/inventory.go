@@ -2,12 +2,12 @@ package handler
 
 import (
 	"context"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"mall_srvs/goods_srv/global"
+	"mall_srvs/inventory_srv/global"
 	"mall_srvs/inventory_srv/model"
 	"mall_srvs/inventory_srv/proto"
 )
@@ -19,7 +19,7 @@ type InventoryServer struct {
 func (s *InventoryServer) SetInv(ctx context.Context, req *proto.GoodsInvInfo) (*emptypb.Empty, error) {
 	// 设置库存
 	var inv model.Inventory
-	global.DB.First(&inv, req.GetGoodsId())
+	global.DB.Where(&model.Inventory{Goods: req.GetGoodsId()}).First(&inv)
 	if inv.Goods == 0 {
 		inv.Goods = req.GetGoodsId()
 	}
@@ -31,7 +31,7 @@ func (s *InventoryServer) SetInv(ctx context.Context, req *proto.GoodsInvInfo) (
 
 func (s *InventoryServer) InvDetail(ctx context.Context, req *proto.GoodsInvInfo) (*proto.GoodsInvInfo, error) {
 	var inv model.Inventory
-	if result := global.DB.First(&inv, req.GetGoodsId()); result.RowsAffected == 0 {
+	if result := global.DB.Where(&model.Inventory{Goods: req.GetGoodsId()}).First(&inv); result.RowsAffected == 0 {
 		return nil, status.Errorf(codes.NotFound, "没有库存信息")
 	}
 	return &proto.GoodsInvInfo{
@@ -45,7 +45,7 @@ func (s *InventoryServer) Sell(ctx context.Context, req *proto.SellInfo) (*empty
 	tx := global.DB.Begin()
 	for _, goodsInfo := range req.GoodsInfo {
 		var inv model.Inventory
-		if result := global.DB.First(&inv, goodsInfo.GetGoodsId()); result.RowsAffected == 0 {
+		if result := global.DB.Where(&model.Inventory{Goods: goodsInfo.GetGoodsId()}).First(&inv); result.RowsAffected == 0 {
 			tx.Rollback()
 			return nil, status.Errorf(codes.InvalidArgument, "没有库存信息")
 		}
@@ -67,10 +67,11 @@ func (s *InventoryServer) Reback(ctx context.Context, req *proto.SellInfo) (*emp
 	tx := global.DB.Begin()
 	for _, goodsInfo := range req.GoodsInfo {
 		var inv model.Inventory
-		if result := global.DB.First(&inv, goodsInfo.GetGoodsId()); result.RowsAffected == 0 {
+		if result := global.DB.Where(&model.Inventory{Goods: goodsInfo.GetGoodsId()}).First(&inv); result.RowsAffected == 0 {
 			tx.Rollback()
 			return nil, status.Errorf(codes.InvalidArgument, "没有库存信息")
 		}
+
 		inv.Stocks = inv.Stocks + goodsInfo.Num
 		tx.Save(&inv)
 	}
