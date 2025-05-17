@@ -1,0 +1,7 @@
+host: '10.120.21.77'
+port: 8848
+namespace: '28fb4eb2-66ac-4409-b9f0-26d519ce67e5'
+user: 'nacos'
+password: 'nacos'
+data_id: 'inventory.json'
+group: 'dev'
