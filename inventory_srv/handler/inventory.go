@@ -61,3 +61,19 @@ func (s *InventoryServer) Sell(ctx context.Context, req *proto.SellInfo) (*empty
 	tx.Commit()
 	return &emptypb.Empty{}, nil
 }
+
+func (s *InventoryServer) Reback(ctx context.Context, req *proto.SellInfo) (*emptypb.Empty, error) {
+	// 库存归还：1. 订单超时归还；2. 订单创建失败；3. 手动归还
+	tx := global.DB.Begin()
+	for _, goodsInfo := range req.GoodsInfo {
+		var inv model.Inventory
+		if result := global.DB.First(&inv, goodsInfo.GetGoodsId()); result.RowsAffected == 0 {
+			tx.Rollback()
+			return nil, status.Errorf(codes.InvalidArgument, "没有库存信息")
+		}
+		inv.Stocks = inv.Stocks + goodsInfo.Num
+		tx.Save(&inv)
+	}
+	tx.Commit()
+	return &emptypb.Empty{}, nil
+}
