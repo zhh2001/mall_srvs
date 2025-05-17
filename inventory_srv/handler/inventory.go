@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"sync"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -40,8 +41,11 @@ func (s *InventoryServer) InvDetail(ctx context.Context, req *proto.GoodsInvInfo
 	}, nil
 }
 
+var m sync.Mutex
+
 func (s *InventoryServer) Sell(ctx context.Context, req *proto.SellInfo) (*emptypb.Empty, error) {
 	// 扣减库存，本地事务，数据一致性
+	m.Lock() // 获取锁
 	tx := global.DB.Begin()
 	for _, goodsInfo := range req.GoodsInfo {
 		var inv model.Inventory
@@ -59,6 +63,7 @@ func (s *InventoryServer) Sell(ctx context.Context, req *proto.SellInfo) (*empty
 		tx.Save(&inv)
 	}
 	tx.Commit()
+	m.Unlock() // 释放锁
 	return &emptypb.Empty{}, nil
 }
 
