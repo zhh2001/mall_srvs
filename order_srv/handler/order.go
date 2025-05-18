@@ -287,3 +287,10 @@ func (orderServer *OrderServer) CreateOrder(ctx context.Context, req *proto.Orde
 		Total:   order.OrderMount,
 	}, nil
 }
+
+func (orderServer *OrderServer) UpdateOrderStatus(ctx context.Context, req *proto.OrderStatus) (*emptypb.Empty, error) {
+	if result := global.DB.Model(&model.OrderInfo{}).Where("order_sn = ?", req.GetOrderSn()).Update("status", req.GetStatus()); result.RowsAffected == 0 {
+		return nil, status.Errorf(codes.NotFound, "订单不存在")
+	}
+	return &emptypb.Empty{}, nil
+}
