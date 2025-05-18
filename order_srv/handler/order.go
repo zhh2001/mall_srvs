@@ -257,6 +257,7 @@ func (orderServer *OrderServer) CreateOrder(ctx context.Context, req *proto.Orde
 		SignerName:   req.GetName(),
 		SingerMobile: req.GetMobile(),
 		Post:         req.GetPost(),
+		User:         req.GetUserId(),
 	}
 	if result := tx.Save(&order); result.RowsAffected == 0 {
 		tx.Rollback()
@@ -276,11 +277,12 @@ func (orderServer *OrderServer) CreateOrder(ctx context.Context, req *proto.Orde
 	if result := tx.Where(&model.ShoppingCart{
 		User:    req.GetUserId(),
 		Checked: true,
-	}).Delete(model.ShoppingCart{}); result.RowsAffected == 0 {
+	}).Delete(&model.ShoppingCart{}); result.RowsAffected == 0 {
 		tx.Rollback()
 		return nil, status.Errorf(codes.Internal, "创建订单失败")
 	}
 
+	tx.Commit()
 	return &proto.OrderInfoResponse{
 		Id:      order.ID,
 		OrderSn: order.OrderSn,
