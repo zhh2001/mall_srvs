@@ -45,6 +45,17 @@ func (s *InventoryServer) InvDetail(ctx context.Context, req *proto.GoodsInvInfo
 	}, nil
 }
 
+func (s *InventoryServer) InvDetailNew(ctx context.Context, req *proto.GoodsInvInfo) (*proto.GoodsInvInfo, error) {
+	var inv model.InventoryNew
+	if result := global.DB.Where(&model.InventoryNew{Goods: req.GetGoodsId()}).First(&inv); result.RowsAffected == 0 {
+		return nil, status.Errorf(codes.NotFound, "没有库存信息")
+	}
+	return &proto.GoodsInvInfo{
+		GoodsId: inv.Goods,
+		Num:     inv.Stocks - inv.Freeze,
+	}, nil
+}
+
 var m sync.Mutex
 
 func (s *InventoryServer) Sell(ctx context.Context, req *proto.SellInfo) (*emptypb.Empty, error) {
@@ -125,6 +136,112 @@ func (s *InventoryServer) Reback(ctx context.Context, req *proto.SellInfo) (*emp
 
 		inv.Stocks = inv.Stocks + goodsInfo.Num
 		tx.Save(&inv)
+	}
+	tx.Commit()
+	return &emptypb.Empty{}, nil
+}
+
+func (s *InventoryServer) TrySell(ctx context.Context, req *proto.SellInfo) (*emptypb.Empty, error) {
+	client := goredislib.NewClient(&goredislib.Options{
+		Addr: "10.120.21.77:6379",
+	})
+	pool := goredis.NewPool(client)
+	rs := redsync.New(pool)
+
+	tx := global.DB.Begin()
+	for _, goodInfo := range req.GoodsInfo {
+		var inv model.InventoryNew
+		mutex := rs.NewMutex(fmt.Sprintf("goods_%d", goodInfo.GetGoodsId()))
+		if err := mutex.Lock(); err != nil {
+			return nil, status.Errorf(codes.Internal, "获取 Redis 分布式锁异常")
+		}
+
+		if result := global.DB.Where(&model.Inventory{Goods: goodInfo.GetGoodsId()}).First(&inv); result.RowsAffected == 0 {
+			tx.Rollback()
+			return nil, status.Errorf(codes.InvalidArgument, "没有库存信息")
+		}
+		// 判断库存是否充足
+		if inv.Stocks < goodInfo.GetNum() {
+			tx.Rollback()
+			return nil, status.Errorf(codes.ResourceExhausted, "库存不足")
+		}
+		inv.Freeze += goodInfo.GetNum()
+		tx.Save(&inv)
+
+		if ok, err := mutex.Unlock(); !ok || err != nil {
+			return nil, status.Errorf(codes.Internal, "释放 Redis 分布式锁异常")
+		}
+	}
+	tx.Commit()
+	return &emptypb.Empty{}, nil
+}
+
+func (s *InventoryServer) ConfirmSell(ctx context.Context, req *proto.SellInfo) (*emptypb.Empty, error) {
+	client := goredislib.NewClient(&goredislib.Options{
+		Addr: "10.120.21.77:6379",
+	})
+	pool := goredis.NewPool(client) // or, pool := redigo.NewPool(...)
+	rs := redsync.New(pool)
+
+	tx := global.DB.Begin()
+	for _, goodInfo := range req.GoodsInfo {
+		var inv model.InventoryNew
+		mutex := rs.NewMutex(fmt.Sprintf("goods_%d", goodInfo.GetGoodsId()))
+		if err := mutex.Lock(); err != nil {
+			return nil, status.Errorf(codes.Internal, "获取 Redis 分布式锁异常")
+		}
+
+		if result := global.DB.Where(&model.Inventory{Goods: goodInfo.GetGoodsId()}).First(&inv); result.RowsAffected == 0 {
+			tx.Rollback()
+			return nil, status.Errorf(codes.InvalidArgument, "没有库存信息")
+		}
+		// 判断库存是否充足
+		if inv.Stocks < goodInfo.GetNum() {
+			tx.Rollback()
+			return nil, status.Errorf(codes.ResourceExhausted, "库存不足")
+		}
+		inv.Stocks -= goodInfo.GetNum()
+		inv.Freeze -= goodInfo.GetNum()
+		tx.Save(&inv)
+
+		if ok, err := mutex.Unlock(); !ok || err != nil {
+			return nil, status.Errorf(codes.Internal, "释放 Redis 分布式锁异常")
+		}
+	}
+	tx.Commit()
+	return &emptypb.Empty{}, nil
+}
+
+func (s *InventoryServer) CancelSell(ctx context.Context, req *proto.SellInfo) (*emptypb.Empty, error) {
+	client := goredislib.NewClient(&goredislib.Options{
+		Addr: "10.120.21.77:6379",
+	})
+	pool := goredis.NewPool(client)
+	rs := redsync.New(pool)
+
+	tx := global.DB.Begin()
+	for _, goodInfo := range req.GoodsInfo {
+		var inv model.InventoryNew
+		mutex := rs.NewMutex(fmt.Sprintf("goods_%d", goodInfo.GetGoodsId()))
+		if err := mutex.Lock(); err != nil {
+			return nil, status.Errorf(codes.Internal, "获取 Redis 分布式锁异常")
+		}
+
+		if result := global.DB.Where(&model.Inventory{Goods: goodInfo.GetGoodsId()}).First(&inv); result.RowsAffected == 0 {
+			tx.Rollback()
+			return nil, status.Errorf(codes.InvalidArgument, "没有库存信息")
+		}
+		// 判断库存是否充足
+		if inv.Stocks < goodInfo.GetNum() {
+			tx.Rollback()
+			return nil, status.Errorf(codes.ResourceExhausted, "库存不足")
+		}
+		inv.Freeze -= goodInfo.GetNum()
+		tx.Save(&inv)
+
+		if ok, err := mutex.Unlock(); !ok || err != nil {
+			return nil, status.Errorf(codes.Internal, "释放 Redis 分布式锁异常")
+		}
 	}
 	tx.Commit()
 	return &emptypb.Empty{}, nil
