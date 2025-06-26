@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -43,8 +44,25 @@ func main() {
 	}
 	err = db.AutoMigrate(
 		&model.Inventory{},
+		&model.StockSellDetail{},
 	)
 	if err != nil {
 		panic(err)
 	}
+
+	orderDetail := model.StockSellDetail{
+		OrderSn: "mall-zhang",
+		Status:  1,
+		Detail: []model.GoodsDetail{
+			{1, 2},
+			{2, 3},
+		},
+	}
+	db.Create(&orderDetail)
+
+	var sellDetail model.StockSellDetail
+	db.Where(model.StockSellDetail{
+		OrderSn: "mall-zhang",
+	}).First(&sellDetail)
+	fmt.Println("sellDetail:", sellDetail)
 }
