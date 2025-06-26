@@ -2,7 +2,10 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 	"sync"
 
 	"github.com/apache/rocketmq-client-go/v2/consumer"
@@ -71,7 +74,17 @@ func (s *InventoryServer) Sell(ctx context.Context, req *proto.SellInfo) (*empty
 	rs := redsync.New(pool)
 
 	tx := global.DB.Begin()
+	sellDetail := model.StockSellDetail{
+		OrderSn: req.GetOrderSn(),
+		Status:  1,
+	}
+	var details []model.GoodsDetail
 	for _, goodsInfo := range req.GoodsInfo {
+		details = append(details, model.GoodsDetail{
+			Goods: goodsInfo.GetGoodsId(),
+			Num:   goodsInfo.GetNum(),
+		})
+
 		//for {
 		var inv model.Inventory
 		//if result := tx.Clauses(clause.Locking{
@@ -120,6 +133,12 @@ func (s *InventoryServer) Sell(ctx context.Context, req *proto.SellInfo) (*empty
 		//}
 		//tx.Save(&inv)
 		//}
+	}
+	sellDetail.Detail = details
+	// 写 SellDetail 表
+	if result := tx.Create(&sellDetail); result.RowsAffected == 0 {
+		tx.Rollback()
+		return nil, status.Errorf(codes.Internal, "保存库存扣减历史失败")
 	}
 	tx.Commit()
 	//m.Unlock() // 释放锁
@@ -250,9 +269,45 @@ func (s *InventoryServer) CancelSell(ctx context.Context, req *proto.SellInfo) (
 }
 
 func AutoReback(ctx context.Context, messages ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
+	type OrderInfo struct {
+		OrderSn string
+	}
 	for i := range messages {
 		// 为了避免重复归还，应该保证消息的幂等性
-		fmt.Printf("获取到值：%v\n", messages[i])
+		var orderInfo OrderInfo
+		err := json.Unmarshal(messages[i].Body, &orderInfo)
+		if err != nil {
+			zap.S().Errorf("解析JSON失败：%v", err)
+			return consumer.ConsumeSuccess, nil
+		}
+
+		tx := global.DB.Begin()
+		var sellDetail model.StockSellDetail
+		if result := tx.Where(&model.StockSellDetail{
+			OrderSn: orderInfo.OrderSn,
+			Status:  1,
+		}).First(&sellDetail); result.RowsAffected == 0 {
+			return consumer.ConsumeSuccess, nil
+		}
+
+		for _, orderGoods := range sellDetail.Detail {
+			if result := tx.Where(&model.Inventory{
+				Goods: orderGoods.Goods,
+			}).Update("stocks", gorm.Expr("stocks + ?", orderGoods.Num)); result.RowsAffected == 0 {
+				tx.Rollback()
+				return consumer.ConsumeRetryLater, nil
+			}
+		}
+
+		if result := tx.Where(&model.StockSellDetail{
+			OrderSn: orderInfo.OrderSn,
+		}).Update("status", 2); result.RowsAffected == 0 {
+			tx.Rollback()
+			return consumer.ConsumeRetryLater, nil
+		}
+
+		tx.Commit()
 	}
+
 	return consumer.ConsumeSuccess, nil
 }
