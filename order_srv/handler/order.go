@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/producer"
 	"go.uber.org/zap"
@@ -296,9 +297,38 @@ func (orderListener *OrderListener) ExecuteLocalTransaction(message *primitive.M
 		return primitive.CommitMessageState
 	}
 
+	// 发送延时消息
+	p, err := rocketmq.NewProducer(producer.WithNameServer([]string{"10.120.21.77:9876"}))
+	if err != nil {
+		panic("生成producer失败")
+	}
+
+	if err = p.Start(); err != nil {
+		panic("启动producer失败")
+	}
+
+	msg := &primitive.Message{
+		Topic: "order_timeout",
+		Body:  message.Body,
+	}
+	msg.WithDelayTimeLevel(16) // 30min
+	_, err = p.SendSync(context.Background(), msg)
+
+	if err != nil {
+		zap.S().Errorf("发送延时消息失败：%s\n", err)
+		tx.Rollback()
+		orderListener.Code = codes.Internal
+		orderListener.Detail = "发送延时消息失败"
+		return primitive.CommitMessageState
+	}
+
+	if err = p.Shutdown(); err != nil {
+		panic("关闭producer失败: %s")
+	}
+
 	tx.Commit()
 	orderListener.Code = codes.OK
-	return primitive.UnknowState
+	return primitive.RollbackMessageState
 }
 
 func (orderListener *OrderListener) CheckLocalTransaction(message *primitive.MessageExt) primitive.LocalTransactionState {
@@ -369,4 +399,51 @@ func (orderServer *OrderServer) UpdateOrderStatus(ctx context.Context, req *prot
 		return nil, status.Errorf(codes.NotFound, "订单不存在")
 	}
 	return &emptypb.Empty{}, nil
+}
+
+func OrderTimeout(ctx context.Context, messages ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
+	for i := range messages {
+		var orderInfo model.OrderInfo
+		_ = json.Unmarshal(messages[i].Body, &orderInfo)
+
+		fmt.Printf("获取到订单超时消息：%v\n", time.Now())
+		// 查询订单支付状态
+		var order model.OrderInfo
+		if result := global.DB.Model(model.OrderInfo{}).Where(model.OrderInfo{
+			OrderSn: orderInfo.OrderSn,
+		}).First(&order); result.RowsAffected == 0 {
+			return consumer.ConsumeSuccess, nil
+		}
+		if order.Status != "TRADE_SUCCESS" {
+			tx := global.DB.Begin()
+			order.Status = "TRADE_CLOSED"
+			tx.Save(&order)
+
+			p, err := rocketmq.NewProducer(producer.WithNameServer([]string{"10.120.21.77:9876"}))
+			if err != nil {
+				panic("生成producer失败")
+			}
+
+			if err = p.Start(); err != nil {
+				panic("启动producer失败")
+			}
+
+			msg := &primitive.Message{
+				Topic: "order_reback",
+				Body:  messages[i].Body,
+			}
+			_, err = p.SendSync(context.Background(), msg)
+			if err != nil {
+				tx.Rollback()
+				fmt.Printf("发送失败：%s\n", err)
+				return consumer.ConsumeRetryLater, nil
+			}
+
+			if err = p.Shutdown(); err != nil {
+				panic("关闭producer失败: %s")
+			}
+			tx.Commit()
+		}
+	}
+	return consumer.ConsumeSuccess, nil
 }
