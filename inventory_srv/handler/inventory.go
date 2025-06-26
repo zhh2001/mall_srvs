@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/apache/rocketmq-client-go/v2/consumer"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/go-redsync/redsync/v4"
 	"github.com/go-redsync/redsync/v4/redis/goredis/v9"
 	goredislib "github.com/redis/go-redis/v9"
@@ -245,4 +247,12 @@ func (s *InventoryServer) CancelSell(ctx context.Context, req *proto.SellInfo) (
 	}
 	tx.Commit()
 	return &emptypb.Empty{}, nil
+}
+
+func AutoReback(ctx context.Context, messages ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
+	for i := range messages {
+		// 为了避免重复归还，应该保证消息的幂等性
+		fmt.Printf("获取到值：%v\n", messages[i])
+	}
+	return consumer.ConsumeSuccess, nil
 }

@@ -7,7 +7,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/satori/go.uuid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -74,6 +77,19 @@ func main() {
 		zap.S().Panic("服务注册失败:", err.Error())
 	}
 	zap.S().Debugf("启动服务器，端口：%d", *Port)
+
+	// 监听库存归还Topic
+	c, _ := rocketmq.NewPushConsumer(
+		consumer.WithGroupName("mall-inventory"),
+		consumer.WithNameServer([]string{"10.120.21.77:9876"}),
+	)
+
+	if err = c.Subscribe("order_reback", consumer.MessageSelector{}, handler.AutoReback); err != nil {
+		fmt.Println("读取消息失败")
+	}
+	_ = c.Start()
+	time.Sleep(10 * time.Minute)
+	_ = c.Shutdown()
 
 	// 接收终止信号
 	quit := make(chan os.Signal)

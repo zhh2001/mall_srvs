@@ -1,5 +1,20 @@
 package model
 
+import (
+	"database/sql/driver"
+	"encoding/json"
+)
+
+type GoodsDetailList []string
+
+func (g *GoodsDetailList) Scan(value interface{}) error {
+	return json.Unmarshal(value.([]byte), &g)
+}
+
+func (g *GoodsDetailList) Value() (driver.Value, error) {
+	return json.Marshal(*g)
+}
+
 type Inventory struct {
 	BaseModel
 	Goods   int32 `gorm:"type:int;index"`
@@ -27,4 +42,10 @@ type Delivery struct {
 	Nums    int32  `gorm:"type:int"`
 	OrderSn string `gorm:"type:varchar(200)"`
 	Status  string `gorm:"type:varchar(200)"` // 1-表示等待支付 2-表示支付成功 3-失败
+}
+
+type StockSellDetail struct {
+	OrderSn string          `gorm:"type:varchar(200)"`
+	Status  string          `gorm:"type:varchar(200)"` // 1-表示已扣减 2-表示已归还 3-失败
+	Detail  GoodsDetailList `gorm:"type:varchar(200)"`
 }
