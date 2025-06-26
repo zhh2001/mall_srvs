@@ -300,10 +300,16 @@ func (orderListener *OrderListener) ExecuteLocalTransaction(message *primitive.M
 }
 
 func (orderListener *OrderListener) CheckLocalTransaction(message *primitive.MessageExt) primitive.LocalTransactionState {
-	fmt.Println("RocketMQ的消息回查")
-	time.Sleep(12 * time.Second)
-	fmt.Println("RocketMQ的回查成功")
-	return primitive.CommitMessageState
+	var orderInfo model.OrderInfo
+	_ = json.Unmarshal(message.Body, &orderInfo)
+
+	if result := global.DB.Where(model.OrderInfo{
+		OrderSn: orderInfo.OrderSn,
+	}).First(&orderInfo); result.RowsAffected == 0 {
+		return primitive.CommitMessageState
+	}
+
+	return primitive.RollbackMessageState
 }
 
 func (orderServer *OrderServer) CreateOrder(ctx context.Context, req *proto.OrderRequest) (*proto.OrderInfoResponse, error) {
