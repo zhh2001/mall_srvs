@@ -254,6 +254,7 @@ func (orderListener *OrderListener) ExecuteLocalTransaction(message *primitive.M
 	// 跨服务调用 - 库存微服务
 	if _, err = global.InventorySrvClient.Sell(context.Background(), &proto.SellInfo{
 		GoodsInfo: goodsInvInfo,
+		OrderSn:   orderInfo.OrderSn,
 	}); err != nil {
 		orderListener.Code = codes.ResourceExhausted
 		orderListener.Detail = "扣减库存失败"
@@ -296,6 +297,7 @@ func (orderListener *OrderListener) ExecuteLocalTransaction(message *primitive.M
 	}
 
 	tx.Commit()
+	orderListener.Code = codes.OK
 	return primitive.UnknowState
 }
 
@@ -343,7 +345,7 @@ func (orderServer *OrderServer) CreateOrder(ctx context.Context, req *proto.Orde
 
 	jsonString, _ := json.Marshal(order)
 
-	res, err := p.SendMessageInTransaction(
+	_, err = p.SendMessageInTransaction(
 		context.Background(),
 		primitive.NewMessage("order_reback", jsonString),
 	)
@@ -351,8 +353,8 @@ func (orderServer *OrderServer) CreateOrder(ctx context.Context, req *proto.Orde
 		fmt.Printf("发送失败：%s\n", err)
 		return nil, status.Errorf(codes.Internal, "发送消息失败")
 	}
-	if res.State == primitive.CommitMessageState {
-		return nil, status.Errorf(codes.Internal, "新建订单失败")
+	if orderListener.Code != codes.OK {
+		return nil, status.Errorf(orderListener.Code, orderListener.Detail)
 	}
 
 	return &proto.OrderInfoResponse{
