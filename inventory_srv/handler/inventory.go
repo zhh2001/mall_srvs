@@ -283,7 +283,7 @@ func AutoReback(ctx context.Context, messages ...*primitive.MessageExt) (consume
 
 		tx := global.DB.Begin()
 		var sellDetail model.StockSellDetail
-		if result := tx.Where(&model.StockSellDetail{
+		if result := tx.Model(&model.StockSellDetail{}).Where(&model.StockSellDetail{
 			OrderSn: orderInfo.OrderSn,
 			Status:  1,
 		}).First(&sellDetail); result.RowsAffected == 0 {
@@ -291,7 +291,7 @@ func AutoReback(ctx context.Context, messages ...*primitive.MessageExt) (consume
 		}
 
 		for _, orderGoods := range sellDetail.Detail {
-			if result := tx.Where(&model.Inventory{
+			if result := tx.Model(&model.Inventory{}).Where(&model.Inventory{
 				Goods: orderGoods.Goods,
 			}).Update("stocks", gorm.Expr("stocks + ?", orderGoods.Num)); result.RowsAffected == 0 {
 				tx.Rollback()
@@ -299,7 +299,7 @@ func AutoReback(ctx context.Context, messages ...*primitive.MessageExt) (consume
 			}
 		}
 
-		if result := tx.Where(&model.StockSellDetail{
+		if result := tx.Model(&model.StockSellDetail{}).Where(&model.StockSellDetail{
 			OrderSn: orderInfo.OrderSn,
 		}).Update("status", 2); result.RowsAffected == 0 {
 			tx.Rollback()
