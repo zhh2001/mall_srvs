@@ -322,9 +322,9 @@ func (orderListener *OrderListener) ExecuteLocalTransaction(message *primitive.M
 		return primitive.CommitMessageState
 	}
 
-	if err = p.Shutdown(); err != nil {
-		panic("关闭producer失败: %s")
-	}
+	//if err = p.Shutdown(); err != nil {
+	//	panic("关闭producer失败: %s")
+	//}
 
 	tx.Commit()
 	orderListener.Code = codes.OK
@@ -439,9 +439,9 @@ func OrderTimeout(ctx context.Context, messages ...*primitive.MessageExt) (consu
 				return consumer.ConsumeRetryLater, nil
 			}
 
-			if err = p.Shutdown(); err != nil {
-				panic("关闭producer失败: %s")
-			}
+			//if err = p.Shutdown(); err != nil {
+			//	panic("关闭producer失败: %s")
+			//}
 			tx.Commit()
 		}
 	}

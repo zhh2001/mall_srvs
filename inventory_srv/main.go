@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/apache/rocketmq-client-go/v2"
 	"github.com/apache/rocketmq-client-go/v2/consumer"
@@ -88,13 +87,12 @@ func main() {
 		fmt.Println("读取消息失败")
 	}
 	_ = c.Start()
-	time.Sleep(10 * time.Minute)
-	_ = c.Shutdown()
 
 	// 接收终止信号
 	quit := make(chan os.Signal)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+	_ = c.Shutdown()
 	if err = registerClient.Deregister(serviceId); err != nil {
 		zap.S().Panic("注销失败:", err.Error())
 	} else {
