@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	sentinel "github.com/alibaba/sentinel-golang/api"
 	"github.com/alibaba/sentinel-golang/core/base"
@@ -20,7 +21,8 @@ func main() {
 		{
 			Resource:               "qps-test-1",
 			TokenCalculateStrategy: flow.Direct,
-			ControlBehavior:        flow.Reject, // 直接拒绝
+			ControlBehavior:        flow.Throttling, // 匀速通过
+			MaxQueueingTimeMs:      100,             // 匀速排队的最大等待时间，该字段仅仅对 `Throttling` ControlBehavior生效
 			Threshold:              10,
 			StatIntervalInMs:       1000,
 		},
@@ -45,5 +47,6 @@ func main() {
 			fmt.Println("检查通过")
 			e.Exit()
 		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
